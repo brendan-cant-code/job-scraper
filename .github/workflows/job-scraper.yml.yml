@@ -30,7 +30,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SMTP_GMAIL_USER: ${{ secrets.SMTP_GMAIL_USER }}
           SMTP_GMAIL_PASS: ${{ secrets.SMTP_GMAIL_PASS }}
-          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          NOTIFY_GMAIL_EMAIL: ${{ secrets.NOTIFY_GMAIL_EMAIL }}
         run: python scraper.py
 
       - name: Commit updated postings log
