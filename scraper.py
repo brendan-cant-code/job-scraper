@@ -180,8 +180,8 @@ def send_email_notification(new_postings):
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, [notify_to], msg.as_string())
+            server.login(smtp_gmail_user, smtp_gmail_pass)
+            server.sendmail(smtp_gmail_user, [notify_to], msg.as_string())
     except Exception as e:
         print(f"  [!] Email notification failed: {e}")
 
