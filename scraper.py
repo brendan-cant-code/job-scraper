@@ -214,6 +214,17 @@ def main():
 
     if not new_postings:
         print("No new postings since last run.")
+
+        # Testing if it can send emails
+        print("Sending test email to verify credentials...")
+        test_posting = [{
+            "company": "Test Company",
+            "title": "Software Engineer Intern (TEST)",
+            "location": "Remote",
+            "url": "https://example.com"
+        }]
+        send_email_notification(test_posting)
+
         return
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
