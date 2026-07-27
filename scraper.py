@@ -164,10 +164,10 @@ def send_slack_notification(new_postings):
 
 
 def send_email_notification(new_postings):
-    smtp_user = os.environ.get("SMTP_USER")
-    smtp_pass = os.environ.get("SMTP_PASS")
+    smtp_gmail_user = os.environ.get("SMTP_GMAIL_USER")
+    smtp_gmail_pass = os.environ.get("SMTP_GMAIL_PASS")
     notify_to = os.environ.get("NOTIFY_EMAIL")
-    if not (smtp_user and smtp_pass and notify_to):
+    if not (smtp_gmail_user and smtp_gmail_pass and notify_to):
         return
 
     lines = [f"{p['company']} — {p['title']} ({p['location']})\n{p['url']}" for p in new_postings]
@@ -175,7 +175,7 @@ def send_email_notification(new_postings):
 
     msg = MIMEText(body)
     msg["Subject"] = f"[Job Scraper] {len(new_postings)} new posting(s)"
-    msg["From"] = smtp_user
+    msg["From"] = smtp_gmail_user
     msg["To"] = notify_to
 
     try:
