@@ -164,10 +164,12 @@ def send_slack_notification(new_postings):
 
 
 def send_email_notification(new_postings):
-    smtp_gmail_user = os.environ.get("SMTP_GMAIL_USER")
-    smtp_gmail_pass = os.environ.get("SMTP_GMAIL_PASS")
-    notify_to = os.environ.get("NOTIFY_GMAIL_EMAIL")
+    smtp_gmail_user = os.environ.get("SMTP_USER")
+    smtp_gmail_pass = os.environ.get("SMTP_PASS")
+    notify_to = os.environ.get("NOTIFY_EMAIL")
+    
     if not (smtp_gmail_user and smtp_gmail_pass and notify_to):
+        print("  [!] Missing email credentials in environment variables. Skipping email.")
         return
 
     lines = [f"{p['company']} — {p['title']} ({p['location']})\n{p['url']}" for p in new_postings]
@@ -182,6 +184,7 @@ def send_email_notification(new_postings):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(smtp_gmail_user, smtp_gmail_pass)
             server.sendmail(smtp_gmail_user, [notify_to], msg.as_string())
+        print("  [+] Email notification sent successfully!")
     except Exception as e:
         print(f"  [!] Email notification failed: {e}")
 
