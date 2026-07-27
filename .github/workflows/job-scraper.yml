@@ -1,0 +1,42 @@
+name: Job Scraper
+
+on:
+  schedule:
+    # Runs every day at 13:00 UTC (adjust to your timezone preference).
+    # Cron format: minute hour day month day-of-week
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}  # lets you manually trigger a run from the Actions tab
+
+permissions:
+  contents: write  # needed so the workflow can commit updated postings.csv back to the repo
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: python scraper.py
+
+      - name: Commit updated postings log
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/postings.csv
+          git diff --quiet --cached || git commit -m "Update job postings log [automated]"
+          git push
