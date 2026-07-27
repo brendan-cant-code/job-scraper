@@ -26,6 +26,7 @@ GREENHOUSE_COMPANIES = [
     "airbnb",
     "stripe",
     "doordash",
+    "doordashusa",      # "doordash" by itself may not work
     "robinhood",
 ]
 
@@ -164,9 +165,9 @@ def send_slack_notification(new_postings):
 
 
 def send_email_notification(new_postings):
-    smtp_gmail_user = os.environ.get("SMTP_USER")
-    smtp_gmail_pass = os.environ.get("SMTP_PASS")
-    notify_to = os.environ.get("NOTIFY_EMAIL")
+    smtp_gmail_user = os.environ.get("SMTP_GMAIL_USER")
+    smtp_gmail_pass = os.environ.get("SMTP_GMAIL_PASS")
+    notify_to = os.environ.get("NOTIFY_GMAIL_EMAIL")
     
     if not (smtp_gmail_user and smtp_gmail_pass and notify_to):
         print("  [!] Missing email credentials in environment variables. Skipping email.")
