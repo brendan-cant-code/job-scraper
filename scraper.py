@@ -216,7 +216,7 @@ def main():
     if not new_postings:
         print("No new postings since last run.")
 
-        # Testing if it can send emails
+        # Edge case; testing to see if email is sent or not
         print("Sending test email to verify credentials...")
         test_posting = [{
             "company": "Test Company",

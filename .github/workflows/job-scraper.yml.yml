@@ -4,7 +4,7 @@ on:
   schedule:
     # Runs every day at 13:00 UTC (adjust to your timezone preference).
     # Cron format: minute hour day month day-of-week
-    - cron: "0 13,22 * * *"
+    - cron: "0 12,14,16,18,20,22,0 * * 1-5"
   workflow_dispatch: {}  # lets you manually trigger a run from the Actions tab
 
 permissions:
