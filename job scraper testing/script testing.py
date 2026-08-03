@@ -19,6 +19,7 @@ import requests
 # ---------------------------------------------------------------------------
 # CONFIG — edit this section to customize your search
 # 
+# Version 2.1 = code revampt to include the addition of GE vernova and workday companies
 # Version 2.1.1 = expanded on keyword blacklist filter
 # ---------------------------------------------------------------------------
 
