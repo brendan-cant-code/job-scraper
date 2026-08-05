@@ -357,9 +357,20 @@ def send_email_notification(new_postings):
     if not (smtp_gmail_user and smtp_gmail_pass and notify_to):
         print("  [!] Missing email credentials in environment variables. Skipping email.")
         return
- 
-    lines = [f"{p['company']} — {p['title']} ({p['location']})\n{p['url']}" for p in new_postings]
-    body = f"{len(new_postings)} new posting(s) found:\n\n" + "\n\n".join(lines)
+
+    from datetime import datetime, timezone
+    run_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if new_postings:
+        lines = [f"{p['company']} — {p['title']} ({p['location']})\n{p['url']}" for p in new_postings]
+        body = (
+            f"Run completed: {run_time}\n\n"
+            f"{len(new_postings)} new posting(s) found:\n\n" + "\n\n".join(lines)
+        )
+        subject = f"[Job Scraper] {len(new_postings)} new posting(s) — {run_time}"
+    else:
+        body = f"Run completed: {run_time}\n\nNo new postings found this run."
+        subject = f"[Job Scraper] No new postings — {run_time}"
  
     msg = MIMEText(body)
     msg["Subject"] = f"[Job Scraper] {len(new_postings)} new posting(s)"
@@ -437,6 +448,7 @@ def main():
         # }]
         # send_email_notification(test_posting)
         
+        send_email_notification([])
         return
  
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
