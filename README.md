@@ -1,6 +1,6 @@
 # Job Posting Scraper
 
-Automatically checks Greenhouse and Lever job boards for internship / entry-level
+Automatically checks Greenhouse, Lever, and Workday job boards for internship / entry-level
 postings, logs new ones to `data/postings.csv`, and notifies you via Slack
 and/or email. Runs daily via GitHub Actions — no server required.
 
@@ -24,11 +24,12 @@ and/or email. Runs daily via GitHub Actions — no server required.
 
 Open `scraper.py` and edit the CONFIG section near the top:
 
-- `GREENHOUSE_COMPANIES` — list of company slugs from Greenhouse job board URLs.
-  Example: `boards.greenhouse.io/airbnb` → slug is `"airbnb"`.
-- `LEVER_COMPANIES` — same idea for Lever: `jobs.lever.co/netflix` → `"netflix"`.
-- `TITLE_KEYWORDS` — words that must appear in a job title to count as a match.
+- `COMPANIES` — enabled companies and their ATS-specific configuration.
+- `ROLE_KEYWORDS` — entry-level role terms required before a job is considered.
+- `INTEREST_KEYWORDS` — engineering specialties and their match-score weights.
 - `EXCLUDE_KEYWORDS` — words that disqualify a match (filters out senior roles, etc).
+- `MIN_MATCH_SCORE` — minimum score required to send an alert. A generic intern role
+  is intentionally not enough; an `Electrical Engineering Intern` is.
 
 **Finding company slugs:** search "[company name] careers greenhouse" or
 "[company name] careers lever" — most tech companies use one of these two
@@ -47,10 +48,10 @@ and add any of these:
   (Slack app → Incoming Webhooks → Add to a channel)
 
 **For email (using Gmail as an example):**
-- `SMTP_USER` — your Gmail address
-- `SMTP_PASS` — a Gmail **App Password** (not your regular password — generate one at
+- `SMTP_GMAIL_USER` — your Gmail address
+- `SMTP_GMAIL_PASS` — a Gmail **App Password** (not your regular password — generate one at
   https://myaccount.google.com/apppasswords, requires 2FA enabled)
-- `NOTIFY_EMAIL` — the address you want notifications sent to (can be the same as SMTP_USER)
+- `NOTIFY_GMAIL_EMAIL` — the address you want notifications sent to (can be the same as SMTP_GMAIL_USER)
 
 You can set up just one of these, both, or neither (the postings will still get
 logged to the spreadsheet either way, you just won't get pinged).
@@ -83,8 +84,8 @@ the file on GitHub.com to see the running log without downloading anything.
 
 ## Limitations
 
-- Only covers companies on Greenhouse or Lever. Workday/iCIMS/custom career
-  sites need a different approach (feasible, just company-specific).
+- Greenhouse, Lever, and Workday are supported. Other ATS platforms and custom
+  career sites need an additional fetcher.
 - Does not cover LinkedIn, Indeed, or Handshake — those block automated
   scraping. Use their native "Job Alerts" features for those platforms instead.
 - GitHub Actions free tier includes 2,000 minutes/month for private repos,

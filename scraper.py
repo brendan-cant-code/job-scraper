@@ -8,7 +8,6 @@ Configure the companies you want to track and your keyword filters below.
 """
  
 import csv
-import json
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -19,7 +18,7 @@ import requests
 # ---------------------------------------------------------------------------
 # CONFIG — edit this section to customize your search
 # 
-# Version 2.1.1 = expanded on keyword blacklist filter
+# Version 2.2.0 = configurable job-match scoring
 # ---------------------------------------------------------------------------
 
 # Greenhouse companies: find the slug in the URL, e.g.
@@ -81,17 +80,38 @@ COMPANIES = [       # think of changing name: companies to tracked_companies
     },
 ]
  
-# Keywords to match in job titles (case-insensitive). A posting matches if
-# ANY of these appear in the title.
-TITLE_KEYWORDS = [
-    "intern",
-    "internship",
-    "entry level",
-    "entry-level",
-    "new grad",
-    "graduate",
-    "junior",
-]
+# A role-level keyword is required before a job can be considered. Scores then
+# distinguish a relevant engineering opportunity from a generic internship.
+ROLE_KEYWORDS = {
+    "internship": 10,
+    "intern": 10,
+    "entry level": 10,
+    "entry-level": 10,
+    "new grad": 10,
+    "graduate": 5,
+    "junior": 5,
+}
+
+# Adjust these weights as your search evolves. Phrases are scored only once,
+# even when a title contains the same phrase more than once.
+INTEREST_KEYWORDS = {
+    "electrical": 20,
+    "power systems": 25,
+    "power electronics": 25,
+    "protection": 25,
+    "relay": 25,
+    "hardware": 15,
+    "embedded": 15,
+    "semiconductor": 15,
+    "data center": 15,
+    "utility": 15,
+    "utilities": 15,
+    "defense": 15,
+}
+
+# A generic "Intern" scores 10 and is ignored. "Electrical Intern" scores
+# 30 and is included. Tune this threshold without changing filtering logic.
+MIN_MATCH_SCORE = 25
  
 # Keywords that disqualify a match even if a title keyword matched
 # (helps filter out "Senior Engineer - mentors interns" type false positives)
@@ -117,6 +137,16 @@ EXCLUDE_KEYWORDS = [
 ]
  
 DATA_FILE = Path(__file__).parent / "data" / "postings.csv"
+POSTING_FIELDS = [
+    "job_id",
+    "company",
+    "source",
+    "title",
+    "location",
+    "url",
+    "match_score",
+    "date_found",
+]
  
 # ---------------------------------------------------------------------------
 # SCRAPING LOGIC - Greenhouse + Lever Jobs
@@ -228,30 +258,74 @@ def fetch_workday_jobs(company):
 
     return results 
  
+def score_job(title):
+    """Return a job's score, or ``None`` when it is not eligible to alert."""
+    title_lower = title.casefold()
+
+    if any(keyword in title_lower for keyword in EXCLUDE_KEYWORDS):
+        return None
+
+    role_score = max(
+        (score for keyword, score in ROLE_KEYWORDS.items() if keyword in title_lower),
+        default=0,
+    )
+    if not role_score:
+        return None
+
+    interest_score = sum(
+        score for keyword, score in INTEREST_KEYWORDS.items() if keyword in title_lower
+    )
+    return role_score + interest_score
+
+
 def matches_filters(title):
-    title_lower = title.lower()
-    has_keyword = any(k in title_lower for k in TITLE_KEYWORDS)
-    has_exclusion = any(k in title_lower for k in EXCLUDE_KEYWORDS)
-    return has_keyword and not has_exclusion
+    """Maintain the filtering interface while enforcing the score threshold."""
+    score = score_job(title)
+    return score is not None and score >= MIN_MATCH_SCORE
+
+
+def posting_key(posting):
+    """Return an ID that remains unique across companies and ATS platforms."""
+    return f"{posting['source']}:{posting['company']}:{posting['job_id']}"
  
  
 def load_existing_postings():
-    """Load previously seen job IDs from the CSV log."""
+    """Load previously seen postings using a company-and-source-aware key."""
     if not DATA_FILE.exists():
         return set()
     with open(DATA_FILE, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        return {row["job_id"] for row in reader}
+        return {
+            f"{row.get('source', '')}:{row.get('company', '')}:{row['job_id']}"
+            for row in reader
+        }
+
+
+def ensure_posting_schema():
+    """Add newly introduced CSV columns without discarding posting history."""
+    if not DATA_FILE.exists():
+        return
+
+    with open(DATA_FILE, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames == POSTING_FIELDS:
+            return
+        rows = list(reader)
+
+    with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=POSTING_FIELDS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in POSTING_FIELDS})
  
  
 def append_postings(postings):
     """Append new postings to the CSV log, creating it with headers if needed."""
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ensure_posting_schema()
     file_exists = DATA_FILE.exists()
     with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["job_id", "company", "source", "title", "location", "url", "date_found"]
-        )
+        writer = csv.DictWriter(f, fieldnames=POSTING_FIELDS)
         if not file_exists:
             writer.writeheader()
         for p in postings:
@@ -339,11 +413,16 @@ def main():
         else:
             print(f"  [!] Unsupported platform '{company['platform']}' for {company['name']}, skipping.")
 
-    matched = [j for j in all_jobs if matches_filters(j["title"])]
+    matched = []
+    for job in all_jobs:
+        score = score_job(job["title"])
+        if score is not None and score >= MIN_MATCH_SCORE:
+            job["match_score"] = score
+            matched.append(job)
     print(f"Found {len(matched)} postings matching keyword filters.")
  
     existing_ids = load_existing_postings()
-    new_postings = [j for j in matched if j["job_id"] not in existing_ids]
+    new_postings = [j for j in matched if posting_key(j) not in existing_ids]
  
     if not new_postings:
         print("No new postings since last run.")
