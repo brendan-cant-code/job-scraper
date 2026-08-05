@@ -359,7 +359,8 @@ def send_email_notification(new_postings):
         return
 
     from datetime import datetime, timezone
-    run_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    from zoneinfo import ZoneInfo
+    run_time = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M %Z")
 
     if new_postings:
         lines = [f"{p['company']} — {p['title']} ({p['location']})\n{p['url']}" for p in new_postings]
