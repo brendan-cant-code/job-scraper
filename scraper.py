@@ -9,8 +9,10 @@ Configure the companies you want to track and your keyword filters below.
  
 import csv
 import os
+import re
 import smtplib
 from email.mime.text import MIMEText
+from html import unescape
 from pathlib import Path
  
 import requests
@@ -18,8 +20,8 @@ import requests
 # ---------------------------------------------------------------------------
 # CONFIG — edit this section to customize your search
 # 
-# Version 2.2.1 = implemented basic email info for when the automation would run
-# Version 2.3 = google sheet implementation
+# Version 2.4 = description based matching implementation -- scoring is now applicable to descriptions
+# Version 2.4.1 = added more companies
 # ---------------------------------------------------------------------------
 
 # Greenhouse companies: find the slug in the URL, e.g.
@@ -40,7 +42,9 @@ import requests
  
  
 COMPANIES = [       # think of changing name: companies to tracked_companies
- 
+
+    # CS companies
+
     {
         "name": "Airbnb",
         "platform": "greenhouse",
@@ -71,6 +75,9 @@ COMPANIES = [       # think of changing name: companies to tracked_companies
         "slug": "netflix",
         "enabled": True,
     },
+
+    # Power Systems
+
     {
     "name": "GE Vernova",
     "platform": "workday",
@@ -79,6 +86,88 @@ COMPANIES = [       # think of changing name: companies to tracked_companies
     "site": "Vernova_ExternalSite",
     "enabled": True,
     },
+
+    {
+    "name": "KBR",
+    "platform": "workday",
+    "tenant": "kbr",
+    "wd_server": "wd5",
+    "site": "KBR_Careers",
+    "enabled": True,
+    },
+
+    {
+    "name": "National Renewable Energy Laboratory",
+    "platform": "workday",
+    "tenant": "nrel",
+    "wd_server": "wd5",
+    "site": "NLR",
+    "enabled": True,
+    },
+
+    {
+    "name": "Energy Vault",
+    "platform": "lever",
+    "slug": "EnergyVault",
+    "enabled": True,
+    },
+
+    # Protection, controls, substations, grid automation 
+
+    {
+    "name": "Schweitzer Engineering Laboratories",
+    "platform": "workday",
+    "tenant": "selinc",
+    "wd_server": "wd1",
+    "site": "SEL",
+    "enabled": True,
+    },
+
+    {
+    "name": "Hitachi Energy",
+    "platform": "workday",
+    "tenant": "hitachi",
+    "wd_server": "wd1",
+    "site": "hitachi",
+    "enabled": True,
+    },
+
+    {
+    "name": "ERCOT",
+    "platform": "workday",
+    "tenant": "ercot",
+    "wd_server": "wd1",
+    "site": "ercot_careers",
+    "enabled": True,
+    },
+
+    # Defense and electrical hardware
+    
+    {
+    "name": "Blue Origin",
+    "platform": "workday",
+    "tenant": "blueorigin",
+    "wd_server": "wd5",
+    "site": "BlueOrigin",
+    "enabled": True,
+    },
+
+    {
+    "name": "Crane Aerospace & Electronics",
+    "platform": "workday",
+    "tenant": "cranecompany",
+    "wd_server": "wd5",
+    "site": "Careers",
+    "enabled": True,
+    },
+
+    {
+    "name": "Pyka",
+    "platform": "lever",
+    "slug": "pyka",
+    "enabled": True,
+    },
+
 ]
  
 # A role-level keyword is required before a job can be considered. Scores then
@@ -100,15 +189,47 @@ INTEREST_KEYWORDS = {
     "power systems": 25,
     "power electronics": 25,
     "protection": 25,
+    "protection and control": 25,
     "relay": 25,
+    "substation": 25,
+    "switchgear": 25,
     "hardware": 15,
     "embedded": 15,
     "semiconductor": 15,
     "data center": 15,
+    "data center electrical": 25,
+    "critical facilities": 20,
+    "electrical infrastructure": 25,
     "utility": 15,
     "utilities": 15,
     "defense": 15,
 }
+
+# Description signals are deliberately weaker than title signals. A job must
+# still have an entry-level title, while the description supplies engineering
+# context that titles often omit.
+DESCRIPTION_KEYWORDS = {
+    "electrical": 8,
+    "power systems": 12,
+    "power electronics": 12,
+    "protection": 10,
+    "protection and control": 12,
+    "relay": 12,
+    "substation": 12,
+    "switchgear": 12,
+    "hardware": 8,
+    "pcb": 8,
+    "embedded": 8,
+    "semiconductor": 8,
+    "data center electrical": 12,
+    "critical facilities": 10,
+    "electrical infrastructure": 12,
+    "transmission": 10,
+    "distribution": 10,
+    "scada": 10,
+    "defense": 8,
+}
+MAX_DESCRIPTION_SCORE = 30
 
 # A generic "Intern" scores 10 and is ignored. "Electrical Intern" scores
 # 30 and is included. Tune this threshold without changing filtering logic.
@@ -145,8 +266,11 @@ POSTING_FIELDS = [
     "title",
     "location",
     "url",
-    "match_score",
     "date_found",
+    "match_score",
+    "title_score",
+    "description_score",
+    "match_reasons",
 ]
  
 # ---------------------------------------------------------------------------
@@ -158,7 +282,7 @@ def fetch_greenhouse_jobs(company):     # replaced company_slug with company
     """Fetch all jobs for a company from Greenhouse's public API."""
     url = f"https://boards-api.greenhouse.io/v1/boards/{company['slug']}/jobs"     # replaced {company_slug} to {company['slug']}
     try:
-        resp = requests.get(url, timeout=15)
+        resp = requests.get(url, params={"content": "true"}, timeout=15)
         resp.raise_for_status()
         jobs = resp.json().get("jobs", [])
     except requests.RequestException as e:
@@ -175,6 +299,7 @@ def fetch_greenhouse_jobs(company):     # replaced company_slug with company
                 "location": (job.get("location") or {}).get("name", ""),
                 "url": job.get("absolute_url", ""),
                 "job_id": str(job.get("id", "")),
+                "description": html_to_text(job.get("content", "")),
             }
         )
     return results
@@ -201,6 +326,7 @@ def fetch_lever_jobs(company):     # repeated changes done to greenhouse compani
                 "location": (job.get("categories") or {}).get("location", ""),
                 "url": job.get("hostedUrl", ""),
                 "job_id": str(job.get("id", "")),
+                "description": job.get("descriptionPlain") or html_to_text(job.get("description", "")),
             }
         )
     return results
@@ -208,6 +334,19 @@ def fetch_lever_jobs(company):     # repeated changes done to greenhouse compani
 # ---------------------------------------------------------------------------
 # SCRAPING LOGIC - Workday Jobs
 # ---------------------------------------------------------------------------
+
+def fetch_workday_job_description(base_url, external_path, company_name):
+    """Fetch a Workday job's full description without failing the whole run."""
+    try:
+        response = requests.get(f"{base_url}{external_path}", timeout=15)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        print(f"  [!] Failed to fetch Workday job details for {company_name}: {error}")
+        return ""
+
+    job_info = response.json().get("jobPostingInfo", {})
+    return html_to_text(job_info.get("jobDescription", ""))
+
 
 def fetch_workday_jobs(company):
     """Fetch all jobs for a company from Workday's CxS API."""
@@ -240,48 +379,112 @@ def fetch_workday_jobs(company):
             break
 
         for job in postings:
-            results.append(
-                {
-                    "company": company["name"],
-                    "source": "workday",
-                    "title": job.get("title", ""),
-                    "location": job.get("locationsText", ""),
-                    "url": f"https://{tenant}.{wd_server}.myworkdayjobs.com/en-US/{site}{job.get('externalPath', '')}",
-                    "job_id": job.get("bulletFields", [job.get("externalPath", "")])[0]
-                    if job.get("bulletFields")
-                    else job.get("externalPath", ""),
-                }
-            )
+            external_path = job.get("externalPath", "")
+            result = {
+                "company": company["name"],
+                "source": "workday",
+                "title": job.get("title", ""),
+                "location": job.get("locationsText", ""),
+                "url": f"https://{tenant}.{wd_server}.myworkdayjobs.com/en-US/{site}{external_path}",
+                #"job_id": external_path,
+                "job_id": extract_req_id(external_path),
+                "description": "",
+            }
+            if is_role_candidate(result["title"]):
+                result["description"] = fetch_workday_job_description(
+                    base_url, external_path, company["name"]
+                )
+            results.append(result)
 
         offset += limit
         if offset >= data.get("total", 0):
             break
 
     return results 
- 
-def score_job(title):
-    """Return a job's score, or ``None`` when it is not eligible to alert."""
+
+def extract_req_id(external_path):      # testing
+    match = re.search(r"(R\d+(-\d+)?)$", external_path)
+    return match.group(1) if match else external_path
+
+def html_to_text(value):
+    """Normalize an ATS description to searchable plain text."""
+    text = re.sub(r"<[^>]+>", " ", unescape(value or ""))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def is_role_candidate(title):
+    """Require an entry-level role title before inspecting its description."""
     title_lower = title.casefold()
+    return (
+        not any(keyword in title_lower for keyword in EXCLUDE_KEYWORDS)
+        and any(keyword in title_lower for keyword in ROLE_KEYWORDS)
+    )
 
-    if any(keyword in title_lower for keyword in EXCLUDE_KEYWORDS):
+
+def score_keyword_matches(text, keyword_scores, source):
+    """Return a score and human-readable reasons for matching configured terms."""
+    text_lower = text.casefold()
+    matches = []
+    for keyword, score in sorted(keyword_scores.items(), key=lambda item: len(item[0]), reverse=True):
+        if keyword not in text_lower:
+            continue
+        # A specific phrase such as "protection and control" should not also
+        # receive the separate, weaker "protection" score.
+        if any(keyword in selected_keyword for selected_keyword, _ in matches):
+            continue
+        matches.append((keyword, score))
+    score = sum(score for _, score in matches)
+    reasons = [f"{source}: {keyword} (+{score})" for keyword, score in matches]
+    return score, reasons
+
+
+def evaluate_job(title, description=""):
+    """Return explainable score details, or ``None`` for ineligible roles."""
+    if not is_role_candidate(title):
         return None
 
-    role_score = max(
-        (score for keyword, score in ROLE_KEYWORDS.items() if keyword in title_lower),
-        default=0,
+    title_lower = title.casefold()
+    role_keyword, role_score = max(
+        (
+            (keyword, score)
+            for keyword, score in ROLE_KEYWORDS.items()
+            if keyword in title_lower
+        ),
+        key=lambda item: item[1],
     )
-    if not role_score:
-        return None
-
-    interest_score = sum(
-        score for keyword, score in INTEREST_KEYWORDS.items() if keyword in title_lower
+    interest_score, interest_reasons = score_keyword_matches(
+        title, INTEREST_KEYWORDS, "title"
     )
-    return role_score + interest_score
+    description_score, description_reasons = score_keyword_matches(
+        description, DESCRIPTION_KEYWORDS, "description"
+    )
+
+    raw_description_score = description_score
+    description_score = min(description_score, MAX_DESCRIPTION_SCORE)
+
+    if raw_description_score > MAX_DESCRIPTION_SCORE:
+        description_reasons.append(f"description score capped at {MAX_DESCRIPTION_SCORE}")
+
+    title_score = role_score + interest_score
+    return {
+        "title_score": title_score,
+        "description_score": description_score,
+        "match_score": title_score + description_score,
+        "match_reasons": "; ".join(
+            [f"title: {role_keyword} (+{role_score})", *interest_reasons, *description_reasons]
+        ),
+    }
 
 
-def matches_filters(title):
+def score_job(title, description=""):
+    """Return a job's total score, or ``None`` when it is not eligible."""
+    evaluation = evaluate_job(title, description)
+    return None if evaluation is None else evaluation["match_score"]
+
+
+def matches_filters(title, description=""):
     """Maintain the filtering interface while enforcing the score threshold."""
-    score = score_job(title)
+    score = score_job(title, description)
     return score is not None and score >= MIN_MATCH_SCORE
 
 
@@ -326,7 +529,7 @@ def append_postings(postings):
     ensure_posting_schema()
     file_exists = DATA_FILE.exists()
     with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=POSTING_FIELDS)
+        writer = csv.DictWriter(f, fieldnames=POSTING_FIELDS, extrasaction="ignore")        ## added "extrasaction="ignore""
         if not file_exists:
             writer.writeheader()
         for p in postings:
@@ -409,8 +612,13 @@ def sync_to_google_sheets(new_postings):
         client = gspread.authorize(creds)
         sheet = client.open_by_key(sheet_id).sheet1
 
-        if sheet.row_count == 0 or not sheet.get_all_values():
+        existing_header = sheet.row_values(1)
+        if not existing_header:
             sheet.append_row(POSTING_FIELDS)
+        elif existing_header != POSTING_FIELDS:
+            # Existing data keeps its original column positions because new
+            # score fields are appended after date_found.
+            sheet.update([POSTING_FIELDS], "A1")
 
         rows = [[p.get(field, "") for field in POSTING_FIELDS] for p in new_postings]
         sheet.append_rows(rows)
@@ -459,9 +667,9 @@ def main():
 
     matched = []
     for job in all_jobs:
-        score = score_job(job["title"])
-        if score is not None and score >= MIN_MATCH_SCORE:
-            job["match_score"] = score
+        evaluation = evaluate_job(job["title"], job.get("description", ""))
+        if evaluation is not None and evaluation["match_score"] >= MIN_MATCH_SCORE:
+            job.update(evaluation)
             matched.append(job)
     print(f"Found {len(matched)} postings matching keyword filters.")
  

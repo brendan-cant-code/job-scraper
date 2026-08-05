@@ -21,6 +21,39 @@ class JobScoringTests(unittest.TestCase):
         self.assertEqual(scraper.score_job("Business Operations Intern"), 10)
         self.assertFalse(scraper.matches_filters("Business Operations Intern"))
 
+    def test_description_terms_can_make_an_engineering_intern_relevant(self):
+        evaluation = scraper.evaluate_job(
+            "Engineering Intern",
+            "Support substation protection and relay-control projects.",
+        )
+        self.assertEqual(evaluation["title_score"], 10)
+        self.assertEqual(evaluation["description_score"], 30)
+        self.assertEqual(evaluation["match_score"], 40)
+        self.assertIn("description: substation (+12)", evaluation["match_reasons"])
+
+    def test_description_cannot_bypass_title_role_requirement(self):
+        self.assertIsNone(
+            scraper.evaluate_job(
+                "Electrical Engineer",
+                "Work on power systems, substations, and protection relays.",
+            )
+        )
+
+    def test_html_description_is_normalized_before_matching(self):
+        self.assertEqual(
+            scraper.html_to_text("<p>Power&nbsp;systems<br>and relays</p>"),
+            "Power systems and relays",
+        )
+
+    def test_specific_phrase_does_not_double_count_its_shorter_keyword(self):
+        score, reasons = scraper.score_keyword_matches(
+            "Protection and control intern",
+            {"protection": 10, "protection and control": 12},
+            "description",
+        )
+        self.assertEqual(score, 12)
+        self.assertEqual(reasons, ["description: protection and control (+12)"])
+
     def test_excluded_title_is_rejected_regardless_of_score(self):
         self.assertIsNone(scraper.score_job("Senior Embedded Systems Intern"))
 

@@ -27,9 +27,14 @@ Open `scraper.py` and edit the CONFIG section near the top:
 - `COMPANIES` — enabled companies and their ATS-specific configuration.
 - `ROLE_KEYWORDS` — entry-level role terms required before a job is considered.
 - `INTEREST_KEYWORDS` — engineering specialties and their match-score weights.
+- `DESCRIPTION_KEYWORDS` — lower-weight technical signals found in job descriptions.
 - `EXCLUDE_KEYWORDS` — words that disqualify a match (filters out senior roles, etc).
 - `MIN_MATCH_SCORE` — minimum score required to send an alert. A generic intern role
   is intentionally not enough; an `Electrical Engineering Intern` is.
+
+Job descriptions supplement, but never replace, the title requirement for an
+internship or entry-level role. Each new posting includes a title score, a
+description score, and match reasons so the ranking is easy to tune.
 
 **Finding company slugs:** search "[company name] careers greenhouse" or
 "[company name] careers lever" — most tech companies use one of these two
