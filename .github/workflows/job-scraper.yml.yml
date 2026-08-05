@@ -31,6 +31,8 @@ jobs:
           SMTP_GMAIL_USER: ${{ secrets.SMTP_GMAIL_USER }}
           SMTP_GMAIL_PASS: ${{ secrets.SMTP_GMAIL_PASS }}
           NOTIFY_GMAIL_EMAIL: ${{ secrets.NOTIFY_GMAIL_EMAIL }}
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
         run: python scraper.py
 
       - name: Commit updated postings log

@@ -18,7 +18,8 @@ import requests
 # ---------------------------------------------------------------------------
 # CONFIG — edit this section to customize your search
 # 
-# Version 2.2.0 = configurable job-match scoring
+# Version 2.2.1 = implemented basic email info for when the automation would run
+# Version 2.3 = google sheet implementation
 # ---------------------------------------------------------------------------
 
 # Greenhouse companies: find the slug in the URL, e.g.
@@ -374,7 +375,8 @@ def send_email_notification(new_postings):
         subject = f"[Job Scraper] No new postings — {run_time}"
  
     msg = MIMEText(body)
-    msg["Subject"] = f"[Job Scraper] {len(new_postings)} new posting(s)"
+    # msg["Subject"] = f"[Job Scraper] {len(new_postings)} new posting(s)"
+    msg["Subject"] = subject
     msg["From"] = smtp_gmail_user
     msg["To"] = notify_to
  
@@ -386,7 +388,37 @@ def send_email_notification(new_postings):
     except Exception as e:
         print(f"  [!] Email notification failed: {e}")
  
- 
+def sync_to_google_sheets(new_postings):
+    """Append new postings to a Google Sheet, mirroring the CSV log."""
+    creds_json = os.environ.get("GOOGLE_SHEETS_CREDENTIALS")
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID")
+
+    if not (creds_json and sheet_id):
+        print("  [!] Missing Google Sheets credentials or sheet ID. Skipping sync.")
+        return
+
+    try:
+        
+        import json as jsonlib
+        import gspread
+        from google.oauth2.service_account import Credentials
+
+        creds_dict = jsonlib.loads(creds_json)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(sheet_id).sheet1
+
+        if sheet.row_count == 0 or not sheet.get_all_values():
+            sheet.append_row(POSTING_FIELDS)
+
+        rows = [[p.get(field, "") for field in POSTING_FIELDS] for p in new_postings]
+        sheet.append_rows(rows)
+        print(f"  [+] Synced {len(rows)} posting(s) to Google Sheets.")
+    except Exception as e:
+        print(f"  [!] Google Sheets sync failed: {e}")
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -460,6 +492,7 @@ def main():
     print(f"Logged {len(new_postings)} new posting(s) to {DATA_FILE}")
  
     send_slack_notification(new_postings)
+    sync_to_google_sheets(new_postings)
     send_email_notification(new_postings)
  
  
