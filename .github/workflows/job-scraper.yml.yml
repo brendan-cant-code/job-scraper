@@ -33,6 +33,7 @@ jobs:
           NOTIFY_GMAIL_EMAIL: ${{ secrets.NOTIFY_GMAIL_EMAIL }}
           GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scraper.py
 
       - name: Commit updated postings log

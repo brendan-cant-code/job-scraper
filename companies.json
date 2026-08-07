@@ -1,9 +1,4 @@
 [
-  {"name": "Airbnb", "platform": "greenhouse", "slug": "airbnb", "enabled": true},
-  {"name": "Stripe", "platform": "greenhouse", "slug": "stripe", "enabled": true},
-  {"name": "DoorDash", "platform": "greenhouse", "slug": "doordashusa", "enabled": true},
-  {"name": "Robinhood", "platform": "greenhouse", "slug": "robinhood", "enabled": true},
-  {"name": "Netflix", "platform": "lever", "slug": "netflix", "enabled": true},
   {"name": "Palantir", "platform": "lever", "slug": "palantir", "enabled": true},
   {"name": "GE Vernova", "platform": "workday", "tenant": "gevernova", "wd_server": "wd5", "site": "Vernova_ExternalSite", "enabled": true},
   {"name": "KBR", "platform": "workday", "tenant": "kbr", "wd_server": "wd5", "site": "KBR_Careers", "enabled": true},
