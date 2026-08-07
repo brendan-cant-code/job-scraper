@@ -215,7 +215,6 @@ ROLE_KEYWORDS = {
     "new grad": 10,
     "graduate": 5,
     "junior": 5,
-    "technician": 2,
 }
 
 # Adjust these weights as your search evolves. Phrases are scored only once,
@@ -292,6 +291,7 @@ EXCLUDE_KEYWORDS = [
     "legal",
     "supply chain",
     "human resource",
+    "technician",
 ]
  
 DATA_FILE = Path(__file__).parent / "data" / "postings.csv"
