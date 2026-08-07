@@ -76,6 +76,13 @@ COMPANIES = [       # think of changing name: companies to tracked_companies
         "enabled": True,
     },
 
+    {
+        "name": "Palantir",
+        "platform": "lever",
+        "slug": "palantir",
+        "enabled": True,
+    },
+
     # Power Systems
 
     {
@@ -168,6 +175,34 @@ COMPANIES = [       # think of changing name: companies to tracked_companies
     "enabled": True,
     },
 
+    {
+    "name": "GE Aerospace",
+    "platform": "workday",
+    "tenant": "geaerospace",
+    "wd_server": "wd5",
+    "site": "GE_ExternalSite",
+    "enabled": True,
+    },
+
+    {
+    "name": "RTX",
+    "platform": "workday",
+    "tenant": "globalhr",
+    "wd_server": "wd5",
+    "site": "REC_RTX_Ext_Gateway",
+    "enabled": True,
+    },
+
+    # FAANG & MANGO
+
+    {
+    "name": "NVIDIA",
+    "platform": "workday",
+    "tenant": "nvidia",
+    "wd_server": "wd5",
+    "site": "NVIDIAExternalCareerSite",
+    "enabled": True,
+    },
 ]
  
 # A role-level keyword is required before a job can be considered. Scores then
@@ -180,6 +215,7 @@ ROLE_KEYWORDS = {
     "new grad": 10,
     "graduate": 5,
     "junior": 5,
+    "technician": 2,
 }
 
 # Adjust these weights as your search evolves. Phrases are scored only once,
