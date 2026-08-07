@@ -22,9 +22,9 @@ and/or email. Runs daily via GitHub Actions — no server required.
 
 ## Step 2: Customize your search
 
-Open `scraper.py` and edit the CONFIG section near the top:
+Edit `companies.json` to add, remove, or enable/disable tracked companies. Then edit the keyword settings in `scraper.py`:
 
-- `COMPANIES` — enabled companies and their ATS-specific configuration.
+- `companies.json` — enabled companies and their ATS-specific configuration. Greenhouse and Lever entries need a `slug`; Workday entries need `tenant`, `wd_server`, and `site`.
 - `ROLE_KEYWORDS` — entry-level role terms required before a job is considered.
 - `INTEREST_KEYWORDS` — engineering specialties and their match-score weights.
 - `DESCRIPTION_KEYWORDS` — lower-weight technical signals found in job descriptions.

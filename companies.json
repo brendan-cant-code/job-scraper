@@ -1,0 +1,21 @@
+[
+  {"name": "Airbnb", "platform": "greenhouse", "slug": "airbnb", "enabled": true},
+  {"name": "Stripe", "platform": "greenhouse", "slug": "stripe", "enabled": true},
+  {"name": "DoorDash", "platform": "greenhouse", "slug": "doordashusa", "enabled": true},
+  {"name": "Robinhood", "platform": "greenhouse", "slug": "robinhood", "enabled": true},
+  {"name": "Netflix", "platform": "lever", "slug": "netflix", "enabled": true},
+  {"name": "Palantir", "platform": "lever", "slug": "palantir", "enabled": true},
+  {"name": "GE Vernova", "platform": "workday", "tenant": "gevernova", "wd_server": "wd5", "site": "Vernova_ExternalSite", "enabled": true},
+  {"name": "KBR", "platform": "workday", "tenant": "kbr", "wd_server": "wd5", "site": "KBR_Careers", "enabled": true},
+  {"name": "National Renewable Energy Laboratory", "platform": "workday", "tenant": "nrel", "wd_server": "wd5", "site": "NLR", "enabled": true},
+  {"name": "Energy Vault", "platform": "lever", "slug": "EnergyVault", "enabled": true},
+  {"name": "Schweitzer Engineering Laboratories", "platform": "workday", "tenant": "selinc", "wd_server": "wd1", "site": "SEL", "enabled": true},
+  {"name": "Hitachi Energy", "platform": "workday", "tenant": "hitachi", "wd_server": "wd1", "site": "hitachi", "enabled": true},
+  {"name": "ERCOT", "platform": "workday", "tenant": "ercot", "wd_server": "wd1", "site": "ercot_careers", "enabled": true},
+  {"name": "Blue Origin", "platform": "workday", "tenant": "blueorigin", "wd_server": "wd5", "site": "BlueOrigin", "enabled": true},
+  {"name": "Crane Aerospace & Electronics", "platform": "workday", "tenant": "cranecompany", "wd_server": "wd5", "site": "Careers", "enabled": true},
+  {"name": "Pyka", "platform": "lever", "slug": "pyka", "enabled": true},
+  {"name": "GE Aerospace", "platform": "workday", "tenant": "geaerospace", "wd_server": "wd5", "site": "GE_ExternalSite", "enabled": true},
+  {"name": "RTX", "platform": "workday", "tenant": "globalhr", "wd_server": "wd5", "site": "REC_RTX_Ext_Gateway", "enabled": true},
+  {"name": "NVIDIA", "platform": "workday", "tenant": "nvidia", "wd_server": "wd5", "site": "NVIDIAExternalCareerSite", "enabled": true}
+]

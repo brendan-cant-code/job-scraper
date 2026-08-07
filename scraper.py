@@ -8,6 +8,7 @@ Configure the companies you want to track and your keyword filters below.
 """
  
 import csv
+import json
 import os
 import re
 import smtplib
@@ -20,190 +21,59 @@ import requests
 # ---------------------------------------------------------------------------
 # CONFIG — edit this section to customize your search
 # 
-# Version 2.4 = description based matching implementation -- scoring is now applicable to descriptions
-# Version 2.4.1 = added more companies
+# Version 2.5 = Converted list of companies to single json file. startup validation for the ATS entriese. Updated read me
 # ---------------------------------------------------------------------------
 
-# Greenhouse companies: find the slug in the URL, e.g.
-# https://boards.greenhouse.io/airbnb -> "airbnb"
+COMPANIES_FILE = Path(__file__).with_name("companies.json")
+SUPPORTED_PLATFORMS = {"greenhouse", "lever", "workday"}
 
-# GREENHOUSE_COMPANIES = [
-#    "airbnb",
-#    "stripe",
-#    "doordash",
-#    "doordashusa",
-#    "robinhood",
-# ]
- 
-# LEVER_COMPANIES = [
-#    "netflix",
-# ]
-#
- 
- 
-COMPANIES = [       # think of changing name: companies to tracked_companies
 
-    # CS companies
+def load_companies(companies_file=COMPANIES_FILE):
+    """Load and validate ATS company definitions from a JSON file."""
+    try:
+        with companies_file.open(encoding="utf-8") as file:
+            companies = json.load(file)
+    except FileNotFoundError as error:
+        raise ValueError(f"Company configuration file not found: {companies_file}") from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f"Invalid JSON in company configuration: {error}") from error
 
-    {
-        "name": "Airbnb",
-        "platform": "greenhouse",
-        "slug": "airbnb",
-        "enabled": True,
-    },
-    {
-        "name": "Stripe",
-        "platform": "greenhouse",
-        "slug": "stripe",
-        "enabled": True,
-    },
-    {
-        "name": "DoorDash",
-        "platform": "greenhouse",
-        "slug": "doordashusa",
-        "enabled": True,
-    },
-    {
-        "name": "Robinhood",
-        "platform": "greenhouse",
-        "slug": "robinhood",
-        "enabled": True,
-    },
-    {
-        "name": "Netflix",
-        "platform": "lever",
-        "slug": "netflix",
-        "enabled": True,
-    },
+    if not isinstance(companies, list):
+        raise ValueError("Company configuration must be a JSON array.")
 
-    {
-        "name": "Palantir",
-        "platform": "lever",
-        "slug": "palantir",
-        "enabled": True,
-    },
+    required_by_platform = {
+        "greenhouse": ("slug",),
+        "lever": ("slug",),
+        "workday": ("tenant", "wd_server", "site"),
+    }
+    validated = []
+    seen_companies = set()
+    for index, company in enumerate(companies, start=1):
+        prefix = f"Company entry {index}"
+        if not isinstance(company, dict):
+            raise ValueError(f"{prefix} must be an object.")
+        if not isinstance(company.get("name"), str) or not company["name"].strip():
+            raise ValueError(f"{prefix} must include a non-empty name.")
+        if company.get("platform") not in SUPPORTED_PLATFORMS:
+            raise ValueError(f"{prefix} has unsupported platform {company.get('platform')!r}.")
+        if not isinstance(company.get("enabled", True), bool):
+            raise ValueError(f"{prefix} enabled must be true or false.")
 
-    # Power Systems
+        normalized = {**company, "name": company["name"].strip(), "enabled": company.get("enabled", True)}
+        for field in required_by_platform[normalized["platform"]]:
+            if not isinstance(normalized.get(field), str) or not normalized[field].strip():
+                raise ValueError(f"{prefix} ({normalized['name']}) must include a non-empty {field}.")
+            normalized[field] = normalized[field].strip()
 
-    {
-    "name": "GE Vernova",
-    "platform": "workday",
-    "tenant": "gevernova",
-    "wd_server": "wd5",
-    "site": "Vernova_ExternalSite",
-    "enabled": True,
-    },
+        key = (normalized["platform"], normalized["name"].casefold())
+        if key in seen_companies:
+            raise ValueError(f"Duplicate company entry for {normalized['name']} on {normalized['platform']}.")
+        seen_companies.add(key)
+        validated.append(normalized)
+    return validated
 
-    {
-    "name": "KBR",
-    "platform": "workday",
-    "tenant": "kbr",
-    "wd_server": "wd5",
-    "site": "KBR_Careers",
-    "enabled": True,
-    },
 
-    {
-    "name": "National Renewable Energy Laboratory",
-    "platform": "workday",
-    "tenant": "nrel",
-    "wd_server": "wd5",
-    "site": "NLR",
-    "enabled": True,
-    },
-
-    {
-    "name": "Energy Vault",
-    "platform": "lever",
-    "slug": "EnergyVault",
-    "enabled": True,
-    },
-
-    # Protection, controls, substations, grid automation 
-
-    {
-    "name": "Schweitzer Engineering Laboratories",
-    "platform": "workday",
-    "tenant": "selinc",
-    "wd_server": "wd1",
-    "site": "SEL",
-    "enabled": True,
-    },
-
-    {
-    "name": "Hitachi Energy",
-    "platform": "workday",
-    "tenant": "hitachi",
-    "wd_server": "wd1",
-    "site": "hitachi",
-    "enabled": True,
-    },
-
-    {
-    "name": "ERCOT",
-    "platform": "workday",
-    "tenant": "ercot",
-    "wd_server": "wd1",
-    "site": "ercot_careers",
-    "enabled": True,
-    },
-
-    # Defense and electrical hardware
-    
-    {
-    "name": "Blue Origin",
-    "platform": "workday",
-    "tenant": "blueorigin",
-    "wd_server": "wd5",
-    "site": "BlueOrigin",
-    "enabled": True,
-    },
-
-    {
-    "name": "Crane Aerospace & Electronics",
-    "platform": "workday",
-    "tenant": "cranecompany",
-    "wd_server": "wd5",
-    "site": "Careers",
-    "enabled": True,
-    },
-
-    {
-    "name": "Pyka",
-    "platform": "lever",
-    "slug": "pyka",
-    "enabled": True,
-    },
-
-    {
-    "name": "GE Aerospace",
-    "platform": "workday",
-    "tenant": "geaerospace",
-    "wd_server": "wd5",
-    "site": "GE_ExternalSite",
-    "enabled": True,
-    },
-
-    {
-    "name": "RTX",
-    "platform": "workday",
-    "tenant": "globalhr",
-    "wd_server": "wd5",
-    "site": "REC_RTX_Ext_Gateway",
-    "enabled": True,
-    },
-
-    # FAANG & MANGO
-
-    {
-    "name": "NVIDIA",
-    "platform": "workday",
-    "tenant": "nvidia",
-    "wd_server": "wd5",
-    "site": "NVIDIAExternalCareerSite",
-    "enabled": True,
-    },
-]
+COMPANIES = load_companies()
  
 # A role-level keyword is required before a job can be considered. Scores then
 # distinguish a relevant engineering opportunity from a generic internship.

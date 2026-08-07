@@ -1,4 +1,5 @@
 import csv
+import json
 import sys
 import tempfile
 import unittest
@@ -78,6 +79,30 @@ class CsvMigrationTests(unittest.TestCase):
             with data_file.open(newline="", encoding="utf-8") as file:
                 rows = list(csv.DictReader(file))
             self.assertEqual(rows[0]["match_score"], "")
+
+
+class CompanyConfigurationTests(unittest.TestCase):
+    def test_load_companies_defaults_enabled_to_true(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "companies.json"
+            config_file.write_text(
+                json.dumps([{"name": "Example", "platform": "lever", "slug": "example"}]),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                scraper.load_companies(config_file),
+                [{"name": "Example", "platform": "lever", "slug": "example", "enabled": True}],
+            )
+
+    def test_load_companies_rejects_missing_workday_field(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "companies.json"
+            config_file.write_text(
+                json.dumps([{"name": "Example", "platform": "workday", "tenant": "example", "site": "careers"}]),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "wd_server"):
+                scraper.load_companies(config_file)
 
 
 if __name__ == "__main__":
