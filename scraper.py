@@ -431,8 +431,7 @@ class JobEvaluation(BaseModel):
     match_score: int = Field(description="Score from 0 to 100 based on fit for an electrical/power systems candidate.")
     match_reasons: str = Field(description="Short sentence explaining why it matched or failed.")
 
-def evaluate_job_with_gemini(title: str, description: str = "") -> dict:
-    """Use Gemini to evaluate job relevance instead of manual keyword rules."""
+def evaluate_job_with_gemini(title: str, description: str = "", max_attempts=3) -> dict:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("  [!] Missing GEMINI_API_KEY. Falling back to rule-based evaluation.")
@@ -443,38 +442,45 @@ def evaluate_job_with_gemini(title: str, description: str = "") -> dict:
     # Truncate long descriptions to optimize speed/cost
     prompt = f"""
     Analyze this job posting for an Electrical / Power Systems / Hardware Engineering student or new grad.
-    
+
     Job Title: {title}
-    Job Description: {description[:2000]} 
+    Job Description: {description[:2000]}
     """
 
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=JobEvaluation,
-                temperature=0.1,
-            ),
-        )
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.models.generate_content(
+                model='gemini-3.5-flash-lite',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=JobEvaluation,
+                    temperature=0.1,
+                ),
+            )
+            result = JobEvaluation.model_validate_json(response.text)
+            print(f"  [gemini] '{title[:50]}' -> score={result.match_score}, entry_level={result.is_entry_level_or_intern}, relevant={result.is_relevant_engineering}")
 
-        result = JobEvaluation.model_validate_json(response.text)
+            # Disqualify if it's not entry level or not relevant
+            if not result.is_entry_level_or_intern or not result.is_relevant_engineering:
+                return None
 
-        # Disqualify if it's not entry level or not relevant
-        if not result.is_entry_level_or_intern or not result.is_relevant_engineering:
-            return None
+            return {
+                "title_score": result.match_score // 2,
+                "description_score": result.match_score // 2,
+                "match_score": result.match_score,
+                "match_reasons": f"AI: {result.match_reasons}",
+            }
 
-        return {
-            "title_score": result.match_score // 2,
-            "description_score": result.match_score // 2,
-            "match_score": result.match_score,
-            "match_reasons": f"AI: {result.match_reasons}",
-        }
-
-    except Exception as e:
-        print(f"  [!] Gemini API evaluation error: {e}")
-        return evaluate_job(title, description) # Fallback if API fails
+        except Exception as e:
+            is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+            if is_rate_limit and attempt < max_attempts:
+                delay = 20 * attempt  # free tier RPM limits need real spacing, not seconds
+                print(f"  [!] Gemini rate limited; waiting {delay}s (attempt {attempt}/{max_attempts}).")
+                time.sleep(delay)
+                continue
+            print(f"  [!] Gemini API evaluation error: {e}")
+            return evaluate_job(title, description)    # Fallback if API fails
 
 
 # ---------------------------------------------------------------------------
