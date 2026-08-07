@@ -105,5 +105,28 @@ class CompanyConfigurationTests(unittest.TestCase):
                 scraper.load_companies(config_file)
 
 
+class RequestRetryTests(unittest.TestCase):
+    def test_retries_transient_server_error_then_returns_response(self):
+        first_response = unittest.mock.Mock(status_code=503, headers={})
+        second_response = unittest.mock.Mock(status_code=200, headers={})
+        with patch.object(scraper.requests, "request", side_effect=[first_response, second_response]) as request:
+            with patch.object(scraper.time, "sleep") as sleep:
+                response = scraper.request_with_retries("get", "https://example.com", max_attempts=2, backoff_seconds=0.5)
+
+        self.assertIs(response, second_response)
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(0.5)
+
+    def test_does_not_retry_non_transient_client_error(self):
+        response = unittest.mock.Mock(status_code=404, headers={})
+        with patch.object(scraper.requests, "request", return_value=response) as request:
+            with patch.object(scraper.time, "sleep") as sleep:
+                result = scraper.request_with_retries("get", "https://example.com")
+
+        self.assertIs(result, response)
+        request.assert_called_once()
+        sleep.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

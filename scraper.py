@@ -12,6 +12,7 @@ import json
 import os
 import re
 import smtplib
+import time
 from email.mime.text import MIMEText
 from html import unescape
 from pathlib import Path
@@ -22,6 +23,7 @@ import requests
 # CONFIG — edit this section to customize your search
 # 
 # Version 2.5 = Converted list of companies to single json file. startup validation for the ATS entriese. Updated read me
+# Version 2.5.1 = New companies added, added 3 retry attempts for connection failes and other errors.
 # ---------------------------------------------------------------------------
 
 COMPANIES_FILE = Path(__file__).with_name("companies.json")
@@ -165,6 +167,8 @@ EXCLUDE_KEYWORDS = [
 ]
  
 DATA_FILE = Path(__file__).parent / "data" / "postings.csv"
+MAX_REQUEST_ATTEMPTS = 3
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 POSTING_FIELDS = [
     "job_id",
     "company",
@@ -182,13 +186,38 @@ POSTING_FIELDS = [
 # ---------------------------------------------------------------------------
 # SCRAPING LOGIC - Greenhouse + Lever Jobs
 # ---------------------------------------------------------------------------
- 
- 
+
+
+def request_with_retries(method, url, *, max_attempts=MAX_REQUEST_ATTEMPTS, backoff_seconds=1, **kwargs):
+    """Send an HTTP request, retrying only transient failures with backoff."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.request(method, url, **kwargs)
+        except requests.RequestException:
+            if attempt == max_attempts:
+                raise
+            delay = backoff_seconds * (2 ** (attempt - 1))
+            print(f"  [!] Request failed; retrying in {delay}s (attempt {attempt + 1}/{max_attempts}).")
+            time.sleep(delay)
+            continue
+
+        if response.status_code not in RETRYABLE_STATUS_CODES or attempt == max_attempts:
+            return response
+
+        retry_after = response.headers.get("Retry-After")
+        try:
+            delay = float(retry_after) if retry_after is not None else backoff_seconds * (2 ** (attempt - 1))
+        except ValueError:
+            delay = backoff_seconds * (2 ** (attempt - 1))
+        print(f"  [!] Received HTTP {response.status_code}; retrying in {delay}s (attempt {attempt + 1}/{max_attempts}).")
+        time.sleep(delay)
+
+
 def fetch_greenhouse_jobs(company):     # replaced company_slug with company
     """Fetch all jobs for a company from Greenhouse's public API."""
     url = f"https://boards-api.greenhouse.io/v1/boards/{company['slug']}/jobs"     # replaced {company_slug} to {company['slug']}
     try:
-        resp = requests.get(url, params={"content": "true"}, timeout=15)
+        resp = request_with_retries("get", url, params={"content": "true"}, timeout=15)
         resp.raise_for_status()
         jobs = resp.json().get("jobs", [])
     except requests.RequestException as e:
@@ -215,7 +244,7 @@ def fetch_lever_jobs(company):     # repeated changes done to greenhouse compani
     """Fetch all jobs for a company from Lever's public API."""
     url = f"https://api.lever.co/v0/postings/{company['slug']}?mode=json"
     try:
-        resp = requests.get(url, timeout=15)
+        resp = request_with_retries("get", url, timeout=15)
         resp.raise_for_status()
         jobs = resp.json()
     except requests.RequestException as e:
@@ -244,7 +273,7 @@ def fetch_lever_jobs(company):     # repeated changes done to greenhouse compani
 def fetch_workday_job_description(base_url, external_path, company_name):
     """Fetch a Workday job's full description without failing the whole run."""
     try:
-        response = requests.get(f"{base_url}{external_path}", timeout=15)
+        response = request_with_retries("get", f"{base_url}{external_path}", timeout=15)
         response.raise_for_status()
     except requests.RequestException as error:
         print(f"  [!] Failed to fetch Workday job details for {company_name}: {error}")
@@ -273,7 +302,7 @@ def fetch_workday_jobs(company):
     while True:
         payload = {"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": ""}
         try:
-            resp = requests.post(f"{base_url}/jobs", json=payload, headers=headers, timeout=15)
+            resp = request_with_retries("post", f"{base_url}/jobs", json=payload, headers=headers, timeout=15)
             resp.raise_for_status()
             data = resp.json()
         except requests.RequestException as e:
