@@ -16,15 +16,14 @@ import time
 from email.mime.text import MIMEText
 from html import unescape
 from pathlib import Path
+ 
 import requests
-from google import genai
-from google.genai import types
-from pydantic import BaseModel, Field
  
 # ---------------------------------------------------------------------------
 # CONFIG — edit this section to customize your search
 # 
-# Version 3 = Gemini API integration for AI evaluation.
+# Version 2.5 = Converted list of companies to single json file. startup validation for the ATS entriese. Updated read me
+# Version 2.5.1 = New companies added, added 3 retry attempts for connection failes and other errors.
 # ---------------------------------------------------------------------------
 
 COMPANIES_FILE = Path(__file__).with_name("companies.json")
@@ -77,14 +76,7 @@ def load_companies(companies_file=COMPANIES_FILE):
 
 
 COMPANIES = load_companies()
-
-
-# ---------------------------------------------------------------------------
-# Company scoring — edit this section to customize scoring
-# 
-# ---------------------------------------------------------------------------
-
-
+ 
 # A role-level keyword is required before a job can be considered. Scores then
 # distinguish a relevant engineering opportunity from a generic internship.
 ROLE_KEYWORDS = {
@@ -419,75 +411,6 @@ def evaluate_job(title, description=""):
     }
 
 
-# ---------------------------------------------------------------------------
-# SCRAPING LOGIC - Gemini API for Dedicated Job Boards
-# ---------------------------------------------------------------------------
-
-
-# Define structured output schema
-class JobEvaluation(BaseModel):
-    is_entry_level_or_intern: bool = Field(description="True if the role is for interns, new grads, or entry level (0-2 yrs experience). False if senior/lead/staff.")
-    is_relevant_engineering: bool = Field(description="True if the role relates to electrical engineering, power systems, hardware, embedded systems, or critical infrastructure.")
-    match_score: int = Field(description="Score from 0 to 100 based on fit for an electrical/power systems candidate.")
-    match_reasons: str = Field(description="Short sentence explaining why it matched or failed.")
-
-def evaluate_job_with_gemini(title: str, description: str = "", max_attempts=3) -> dict:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("  [!] Missing GEMINI_API_KEY. Falling back to rule-based evaluation.")
-        return evaluate_job(title, description) # Fallback to existing keyword logic
-
-    client = genai.Client(api_key=api_key)
-
-    # Truncate long descriptions to optimize speed/cost
-    prompt = f"""
-    Analyze this job posting for an Electrical / Power Systems / Hardware Engineering student or new grad.
-
-    Job Title: {title}
-    Job Description: {description[:2000]}
-    """
-
-    for attempt in range(1, max_attempts + 1):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.5-flash-lite',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=JobEvaluation,
-                    temperature=0.1,
-                ),
-            )
-            result = JobEvaluation.model_validate_json(response.text)
-            print(f"  [gemini] '{title[:50]}' -> score={result.match_score}, entry_level={result.is_entry_level_or_intern}, relevant={result.is_relevant_engineering}")
-
-            # Disqualify if it's not entry level or not relevant
-            if not result.is_entry_level_or_intern or not result.is_relevant_engineering:
-                return None
-
-            return {
-                "title_score": result.match_score // 2,
-                "description_score": result.match_score // 2,
-                "match_score": result.match_score,
-                "match_reasons": f"AI: {result.match_reasons}",
-            }
-
-        except Exception as e:
-            is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
-            if is_rate_limit and attempt < max_attempts:
-                delay = 20 * attempt  # free tier RPM limits need real spacing, not seconds
-                print(f"  [!] Gemini rate limited; waiting {delay}s (attempt {attempt}/{max_attempts}).")
-                time.sleep(delay)
-                continue
-            print(f"  [!] Gemini API evaluation error: {e}")
-            return evaluate_job(title, description)    # Fallback if API fails
-
-
-# ---------------------------------------------------------------------------
-# SCRAPING LOGIC - Scoring
-# ---------------------------------------------------------------------------
-
-
 def score_job(title, description=""):
     """Return a job's total score, or ``None`` when it is not eligible."""
     evaluation = evaluate_job(title, description)
@@ -677,28 +600,16 @@ def main():
         else:
             print(f"  [!] Unsupported platform '{company['platform']}' for {company['name']}, skipping.")
 
-    existing_ids = load_existing_postings()
-    new_postings = []
-    # matched = []
+    matched = []
     for job in all_jobs:
-        # Step 1: Fast rule check to filter out non-intern/entry roles without hitting Gemini API
-        if not is_role_candidate(job["title"]):
-            continue
-
-        # Step 2: Skip postings we've already logged, so we don't re-spend API calls on them
-        if posting_key(job) in existing_ids:
-            continue
-
-        # Step 3: Send candidate to Gemini (falls back to keywords if API key is missing)
-        evaluation = evaluate_job_with_gemini(job["title"], job.get("description", ""))
-
+        evaluation = evaluate_job(job["title"], job.get("description", ""))
         if evaluation is not None and evaluation["match_score"] >= MIN_MATCH_SCORE:
             job.update(evaluation)
-            new_postings.append(job)
-
-    print(f"Found {len(new_postings)} new posting(s) matching evaluation filters.")
-
-    # new_postings = [j for j in matched if posting_key(j) not in existing_ids]
+            matched.append(job)
+    print(f"Found {len(matched)} postings matching keyword filters.")
+ 
+    existing_ids = load_existing_postings()
+    new_postings = [j for j in matched if posting_key(j) not in existing_ids]
  
     if not new_postings:
         print("No new postings since last run.")
