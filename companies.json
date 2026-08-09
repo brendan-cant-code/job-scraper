@@ -36,5 +36,7 @@
   {"name": "QTS Data Centers", "platform": "workday", "tenant": "qtsdatacenters", "wd_server": "wd5", "site": "QTS", "enabled": true},
   {"name": "CyrusOne", "platform": "workday", "tenant": "cyrusone", "wd_server": "wd1", "site": "CyrusOneCareerPortal", "enabled": true},
   {"name": "Cadence", "platform": "workday", "tenant": "cadence", "wd_server": "wd1", "site": "External_Careers", "enabled": true},
-  {"name": "Analog Devices", "platform": "workday", "tenant": "analogdevices", "wd_server": "wd1", "site": "External", "enabled": true}
+  {"name": "Analog Devices", "platform": "workday", "tenant": "analogdevices", "wd_server": "wd1", "site": "External", "enabled": true},
+  {"name": "General Motors", "platform": "workday", "tenant": "generalmotors", "wd_server": "wd5", "site": "Careers_GM", "enabled": true},
+  {"name": "Lucid Motors", "platform": "greenhouse", "slug": "lucidmotors", "enabled": true}
 ]
