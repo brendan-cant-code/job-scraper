@@ -41,5 +41,5 @@
   {"name": "Toyota Motor North America", "platform": "workday", "tenant": "toyota", "wd_server": "wd503", "site": "TMNA", "enabled": true},
   {"name": "Lucid Motors", "platform": "greenhouse", "slug": "lucidmotors", "enabled": true},
   {"name": "Rivian", "platform": "greenhouse", "slug": "rivian", "enabled": true},
-  {"name": "Wayve", "platform": "greenhouse", "slug": "wayve", "enabled": true},
+  {"name": "Wayve", "platform": "greenhouse", "slug": "wayve", "enabled": true}
 ]
